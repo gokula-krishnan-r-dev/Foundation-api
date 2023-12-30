@@ -5,7 +5,6 @@ const json2csv = require("json2csv").parse;
 const fs = require("fs");
 const ExcelJS = require("exceljs");
 const path = require("path");
-const bcrypt = require("bcrypt");
 const submissionRouter = require("./Router/submissionRouter");
 const { default: mongoose } = require("mongoose");
 require("./service/db");
@@ -204,9 +203,7 @@ app.post("/admin", async (req, res) => {
       return res.status(200).json({ error: "Invalid secret code" });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10); // 10 is the salt rounds
-
-    const newAdmin = new Admin({ email, password: hashedPassword, role });
+    const newAdmin = new Admin({ email, password: password, role });
     await newAdmin.save();
     res.status(201).json({ message: "Admin account created successfully!" });
   } catch (err) {
