@@ -24,6 +24,24 @@ const authenticate = (req, res, next) => {
 
   next(); // Proceed to the next middleware/route handler if the key is correct
 };
+app.use((req, res, next) => {
+  if (req.headers.origin && allowOrigins.includes(req.headers.origin)) {
+    res.setHeader("Access-Control-Allow-Origin", req.headers.origin);
+  } else {
+    res.setHeader("Access-Control-Allow-Origin", "null");
+  }
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Accept, Origin, Authorization"
+  );
+  res.setHeader(
+    "Access-Control-Allow-Methods",
+    "GET, POST, PUT, DELETE, PATCH, OPTIONS"
+  );
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+  next();
+});
+
 app.use(cors());
 //Idiomatic expression in express to route and respond to a client request
 
