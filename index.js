@@ -394,7 +394,9 @@ app.delete("/admin/:id", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
+app.get("/", (req, res) => {
+  res.send("Hello World");
+});
 app.listen(port, () => {
   //server starts listening for any attempts from a client to connect at port: {port}
   console.log(`Now listening on port ${port}`);
