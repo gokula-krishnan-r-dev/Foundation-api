@@ -118,6 +118,10 @@ const schemaFields = {
     type: String,
     required: true,
   },
+  file: {
+    type: Object,
+    required: false,
+  },
 };
 SubmitData.forEach((field) => {
   schemaFields[field.tag] = String; // Assuming all fields are of type String

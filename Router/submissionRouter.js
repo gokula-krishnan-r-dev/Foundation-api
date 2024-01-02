@@ -6,7 +6,11 @@ const Submission = require("../model/submissionModel");
 const secureKey = "f70c7525463c";
 const nodemailer = require("nodemailer");
 const Counter = require("../model/Counter");
-
+const { GridFsStorage } = require("multer-gridfs-storage");
+const mongoose = require("mongoose");
+const multer = require("multer");
+const submissionRouter = express.Router();
+require("../model/pdfDetails");
 const transporter = nodemailer.createTransport({
   service: "gmail",
   host: "smtp.forwardemail.net",
@@ -18,6 +22,53 @@ const transporter = nodemailer.createTransport({
     pass: "aecm enny mitt ebgy",
   },
 });
+let bucket;
+mongoose.connection.on("connected", () => {
+  var db = mongoose.connections[0].db;
+  bucket = new mongoose.mongo.GridFSBucket(db, {
+    bucketName: "newBucket",
+  });
+  console.log(bucket);
+});
+const MONGODB_URI =
+  "mongodb+srv://gokula:vtEmjsXnqZrqf2rv@cluster0.klfb9oe.mongodb.net/?retryWrites=true&w=majority";
+
+const storage = multer.diskStorage({
+  destination: "./upload/images",
+  filename: (req, file, cb) => {
+    return cb(
+      null,
+      `${file.fieldname}_${Date.now()}${path.extname(file.originalname)}`
+    );
+  },
+});
+
+const PdfSchema = mongoose.model("PdfDetails");
+const upload = multer({ storage: storage });
+
+submissionRouter.post("/upload", upload.array("files", 3), async (req, res) => {
+  console.log(req.files);
+  const title = req.body.title;
+  try {
+    const pdfFiles = req.files.map((file) => ({
+      title: title,
+      pdf: file.filename,
+    }));
+    await PdfSchema.create(pdfFiles);
+    res.send({ status: "ok" });
+  } catch (error) {
+    res.json({ status: error });
+  }
+});
+
+submissionRouter.get("/file", async (req, res) => {
+  try {
+    PdfSchema.find({}).then((data) => {
+      res.send({ status: "ok", data: data });
+    });
+  } catch (error) {}
+});
+
 const authenticate = (req, res, next) => {
   const providedKey = req.query.key; // Assuming the key is provided in the query parameters
 
@@ -27,8 +78,6 @@ const authenticate = (req, res, next) => {
 
   next(); // Proceed to the next middleware/route handler if the key is correct
 };
-
-const submissionRouter = express.Router();
 
 submissionRouter.get("/:id", authenticate, async (req, res) => {
   const { id } = req.params; // Get the ID from the request parameters
@@ -56,62 +105,71 @@ submissionRouter.get("", authenticate, async (req, res) => {
     res.status(500).send("An error occurred while fetching submissions.");
   }
 });
-submissionRouter.post("", authenticate, async (req, res) => {
-  try {
-    const { email, verificationCode } = req.body;
-    const requiredVerificationCode = req.body.refCode; // Replace this with your actual verification code
+submissionRouter.post(
+  "",
+  upload.array("files", 3),
+  authenticate,
+  async (req, res) => {
+    try {
+      const { email, verificationCode } = req.body;
+      const requiredVerificationCode = req.body.refCode; // Replace this with your actual verification code
 
-    // Check if the provided verification code matches the required code
-    if (!requiredVerificationCode) {
-      return res.status(200).json({
-        message: "Invalid verification code. Submission aborted.",
-        status: "error",
-        code: 400,
-        errorMessage:
-          "Please provide a valid verification code to submit the form.",
+      // Check if the provided verification code matches the required code
+      if (!requiredVerificationCode) {
+        return res.status(200).json({
+          message: "Invalid verification code. Submission aborted.",
+          status: "error",
+          code: 400,
+          errorMessage:
+            "Please provide a valid verification code to submit the form.",
+        });
+      }
+      const counter = await Counter.findOneAndUpdate(
+        { _id: "applicationId" },
+        { $inc: { sequence_value: 1 } },
+        { new: true, upsert: true }
+      );
+
+      const applicationId = `APP-${counter.sequence_value
+        .toString()
+        .padStart(4, "0")}`;
+
+      // Check if the email already exists in the database
+      const existingSubmission = await Submission.findOne({ email });
+
+      if (existingSubmission) {
+        return res.status(200).json({
+          message: "Email already exists. Submission aborted.",
+          status: "error",
+          code: 400,
+          errorMessage:
+            "The provided email already exists in our records. Please use a different email address.",
+        });
+      }
+      const pdfFiles = req.files?.map((file) => ({
+        title: file.originalname,
+        pdf: file?.filename,
+      }));
+      console.log(req.files);
+      // Create a new Submission document using the Mongoose model
+      const newSubmission = new Submission({
+        ...req.body,
+        applicationId,
+        file: pdfFiles, // Add the generated application ID to the submission
       });
-    }
-    const counter = await Counter.findOneAndUpdate(
-      { _id: "applicationId" },
-      { $inc: { sequence_value: 1 } },
-      { new: true, upsert: true }
-    );
-
-    const applicationId = `APP-${counter.sequence_value
-      .toString()
-      .padStart(4, "0")}`;
-
-    // Check if the email already exists in the database
-    const existingSubmission = await Submission.findOne({ email });
-
-    if (existingSubmission) {
-      return res.status(200).json({
-        message: "Email already exists. Submission aborted.",
-        status: "error",
-        code: 400,
-        errorMessage:
-          "The provided email already exists in our records. Please use a different email address.",
-      });
-    }
-
-    // Create a new Submission document using the Mongoose model
-    const newSubmission = new Submission({
-      ...req.body,
-      applicationId, // Add the generated application ID to the submission
-    });
-    // Save the submitted data to MongoDB
-    const saved = await newSubmission.save();
-    const mailOptions = {
-      from: "info@gmail.com", // Replace with your email
-      to: email,
-      subject: "Thank you for submitting the form",
-      text: "Thank you for submitting your details. Upon review, our team will contact you shortly for further professional engagement",
-    };
-    const mailOptions1 = {
-      from: "info@gmail.com", // Replace with your email
-      to: "gokulakrishnanr812@gmail.com",
-      subject: "Thank you for submitting the form",
-      html: `
+      // Save the submitted data to MongoDB
+      const saved = await newSubmission.save();
+      const mailOptions = {
+        from: "info@gmail.com", // Replace with your email
+        to: email,
+        subject: "Thank you for submitting the form",
+        text: "Thank you for submitting your details. Upon review, our team will contact you shortly for further professional engagement",
+      };
+      const mailOptions1 = {
+        from: "info@gmail.com", // Replace with your email
+        to: "gokulakrishnanr812@gmail.com",
+        subject: "Thank you for submitting the form",
+        html: `
     <div style="font-family: Arial, sans-serif; padding: 20px;">
       <h2 style="color: #333;">New Submission Details</h2>
       <p><strong>Submission ID:</strong> ${saved._id}</p>
@@ -161,24 +219,25 @@ submissionRouter.post("", authenticate, async (req, res) => {
       </table>
     </div>
   `,
-    };
+      };
 
-    await transporter.sendMail(mailOptions);
-    await transporter.sendMail(mailOptions1);
+      await transporter.sendMail(mailOptions);
+      await transporter.sendMail(mailOptions1);
 
-    res.status(201).json({
-      id: saved._id,
-      message: "Successfully submitted form",
-      status: "success",
-      data: saved,
-      code: 201,
-      applicationId,
-    });
-  } catch (error) {
-    console.error("Error handling form submission:", error);
-    res.status(500).send("An error occurred while processing your request.");
+      res.status(201).json({
+        id: saved._id,
+        message: "Successfully submitted form",
+        status: "success",
+        data: saved,
+        code: 201,
+        applicationId,
+      });
+    } catch (error) {
+      console.error("Error handling form submission:", error);
+      res.status(500).send("An error occurred while processing your request.");
+    }
   }
-});
+);
 submissionRouter.put("/:id", authenticate, async (req, res) => {
   const { id } = req.params; // Get the ID from the request parameters
   const updatedData = req.body; // Updated data from the request body

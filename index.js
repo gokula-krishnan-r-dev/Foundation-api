@@ -23,23 +23,6 @@ const authenticate = (req, res, next) => {
 
   next(); // Proceed to the next middleware/route handler if the key is correct
 };
-app.use((req, res, next) => {
-  if (req.headers.origin && allowOrigins.includes(req.headers.origin)) {
-    res.setHeader("Access-Control-Allow-Origin", req.headers.origin);
-  } else {
-    res.setHeader("Access-Control-Allow-Origin", "null");
-  }
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    "Content-Type, Accept, Origin, Authorization"
-  );
-  res.setHeader(
-    "Access-Control-Allow-Methods",
-    "GET, POST, PUT, DELETE, PATCH, OPTIONS"
-  );
-  res.setHeader("Access-Control-Allow-Credentials", "true");
-  next();
-});
 
 app.use(cors());
 //Idiomatic expression in express to route and respond to a client request
@@ -394,8 +377,89 @@ app.delete("/admin/:id", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+const formDataSchema = new mongoose.Schema({
+  contactPerson: String,
+  organizationName: String,
+  email: String,
+  message: String,
+});
+
+const FormDataModel = mongoose.model("FormData", formDataSchema);
+
+app.post("/submitFormData", async (req, res) => {
+  try {
+    const formData = req.body;
+    const savedFormData = await FormDataModel.create(formData);
+    const mailOptions = {
+      from: "info@gmail.com",
+      to: formData.email,
+      subject: "Thank you for submitting the form",
+      html: `
+        <html>
+          <head>
+            <style>
+              /* Add your CSS styles for the email here */
+              /* Example styles: */
+              body {
+                font-family: Arial, sans-serif;
+                background-color: #f4f4f4;
+                color: #333;
+              }
+              .container {
+                max-width: 600px;
+                margin: 0 auto;
+                padding: 20px;
+                background-color: #fff;
+                border-radius: 5px;
+                box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+              }
+              .header {
+                text-align: center;
+                margin-bottom: 20px;
+              }
+              .message {
+                margin-bottom: 20px;
+              }
+              /* Add more styles as needed */
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h2>Thank you for submitting the form</h2>
+              </div>
+              <div class="message">
+                <p>Dear ${formData.organizationName},</p>
+                <p>Thank you for submitting the form. We will get back to you shortly.</p>
+                <p>Regards,</p>
+                <p>Team</p>
+              </div>
+            </div>
+          </body>
+        </html>
+      `,
+    };
+
+    await transporter.sendMail(mailOptions);
+    res
+      .status(201)
+      .json({
+        savedFormData,
+        message: "Form data saved successfully!",
+        code: 201,
+        error: null,
+        status: "success",
+        email: formData.email,
+        subject: "Thank you for submitting the form",
+      });
+  } catch (error) {
+    res.status(500).json({ error: "Could not save form data" });
+  }
+});
+
 app.get("/", (req, res) => {
-  res.send("Hello World");
+  res.send("This is Website API");
 });
 app.listen(port, () => {
   //server starts listening for any attempts from a client to connect at port: {port}
