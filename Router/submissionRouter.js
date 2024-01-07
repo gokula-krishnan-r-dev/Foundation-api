@@ -113,9 +113,9 @@ submissionRouter.post(
     try {
       const { email, verificationCode } = req.body;
       const requiredVerificationCode = req.body.refCode; // Replace this with your actual verification code
-
+      console.log(requiredVerificationCode, "requiredVerificationCode");
       // Check if the provided verification code matches the required code
-      if (!requiredVerificationCode) {
+      if (requiredVerificationCode !== "demo") {
         return res.status(200).json({
           message: "Invalid verification code. Submission aborted.",
           status: "error",
@@ -157,6 +157,7 @@ submissionRouter.post(
         applicationId,
         file: pdfFiles, // Add the generated application ID to the submission
       });
+      console.log(pdfFiles, "pdfFiles");
       // Save the submitted data to MongoDB
       const saved = await newSubmission.save();
       const mailOptions = {

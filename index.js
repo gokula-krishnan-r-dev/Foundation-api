@@ -244,7 +244,7 @@ const htmlTemplate = (clientName) => `
   <body>
     <div class="container">
       <div class="header">
-        <img src="https://your_company_logo.png" alt="Your Company" style="max-width: 200px;">
+        <img src="https://fmlsaputo.org/wp-content/uploads/2022/10/FML_Saputo_logo.png" alt="Your Company" style="max-width: 200px;">
         <h2>Funding Application Approved</h2>
       </div>
       <p>
@@ -442,17 +442,15 @@ app.post("/submitFormData", async (req, res) => {
     };
 
     await transporter.sendMail(mailOptions);
-    res
-      .status(201)
-      .json({
-        savedFormData,
-        message: "Form data saved successfully!",
-        code: 201,
-        error: null,
-        status: "success",
-        email: formData.email,
-        subject: "Thank you for submitting the form",
-      });
+    res.status(201).json({
+      savedFormData,
+      message: "Form data saved successfully!",
+      code: 201,
+      error: null,
+      status: "success",
+      email: formData.email,
+      subject: "Thank you for submitting the form",
+    });
   } catch (error) {
     res.status(500).json({ error: "Could not save form data" });
   }
