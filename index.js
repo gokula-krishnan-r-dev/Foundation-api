@@ -175,9 +175,20 @@ app.post("/admin", async (req, res) => {
     const { email, password, role, secretCode } = req.body;
 
     // Check if the email already exists in the database
-    const existingAdmin = await Admin.findOne({ email });
+    let existingAdmin = await Admin.findOne({ email });
     if (existingAdmin) {
-      return res.status(200).json({ error: "Email already exists" });
+      // If account exists, send the account details in the response
+      return res.status(200).json({
+        message: "Account found!",
+        code: 200,
+
+        admin: {
+          _id: existingAdmin._id,
+          email: existingAdmin.email,
+          role: existingAdmin.role,
+          // Add any other properties you want to include in the response
+        },
+      });
     }
 
     // Check if the secretCode matches the expected value
@@ -186,13 +197,25 @@ app.post("/admin", async (req, res) => {
       return res.status(200).json({ error: "Invalid secret code" });
     }
 
-    const newAdmin = new Admin({ email, password: password, role });
+    const newAdmin = new Admin({ email, password, role });
     await newAdmin.save();
-    res.status(201).json({ message: "Admin account created successfully!" });
+
+    // Respond with the created admin details including the _id
+    res.status(201).json({
+      message: "Admin account created successfully!",
+      code: 201,
+      admin: {
+        _id: newAdmin._id, // Assuming _id is generated upon saving
+        email: newAdmin.email,
+        role: newAdmin.role,
+        // Add any other properties you want to include in the response
+      },
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
+
 const nodemailer = require("nodemailer");
 const Submission = require("./model/submissionModel");
 
@@ -353,6 +376,22 @@ app.get("/admin", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+app.get("/admin/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const admin = await Admin.findById(id);
+
+    if (!admin) {
+      return res.status(404).json({ error: "Admin not found" });
+    }
+
+    res.status(200).json(admin);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get("/admin/:email", async (req, res) => {
   try {
     const { email } = req.params;
